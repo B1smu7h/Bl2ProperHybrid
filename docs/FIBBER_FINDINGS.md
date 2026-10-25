@@ -10,7 +10,7 @@ The runtime diagnostic exposes at least three layers that must not be conflated:
 2. `Behavior_AttributeEffect` objects referenced by the part's `BehaviorProviderDefinition`.
 3. The weapon's displayed stat card and actual in-use behavior.
 
-The stat card is not currently treated as authoritative for the Fibber. The user reports that its displayed stats can be misleading until the weapon is fired. The diagnostics below expose raw data only; they do not establish the exact engine/UI reason for that discrepancy.
+The Fibber's stat card does not change after firing. Rather, its displayed stats can be misleading about which of the three behavior variants a particular drop has. The actual variant becomes apparent when the weapon is fired. The community has identified correlations between certain misleading card stats (such as projectile count or damage) and the variant, but those mappings have not yet been documented or verified in this repository. The diagnostics below expose raw data only; they do not establish how the game chooses or displays those stats.
 
 ## Observed direct barrel modifiers
 
@@ -34,7 +34,7 @@ These modifiers coexist with direct barrel modifiers. Do not assume they simply 
 ## Design implications for BL2 Proper Hybrid
 
 - Catalogue part attributes and behavior effects separately.
-- Do not use the displayed stat card as the sole source of truth for special weapons.
+- Do not use the displayed stat card as the sole source of truth for identifying a Fibber's firing variant; firing behavior is the current ground-truth check. Community stat-card correlations can be documented separately once sourced or verified.
 - Preserve and inspect behavior-provider sequences and their event wiring, not just the effect objects.
 - Distinguish static data inspection from runtime tests: actual shot patterns, damage, ammo use, and post-fire stats need controlled in-game verification.
 - Avoid mutating shared global objects during early tests. Any future prototype should start with read-only discovery and use a disposable/test save.
@@ -43,5 +43,5 @@ These modifiers coexist with direct barrel modifiers. Do not assume they simply 
 
 1. Determine whether the Fibber's relevant effects are attached to the barrel part, weapon definition, projectile definition, or runtime event logic.
 2. Inspect the behavior sequence and event/link wiring for the three barrels in a concise format.
-3. Record baseline stats and shot behavior in-game for each Fibber variant under controlled conditions.
-4. Compare runtime observations with the part data and stat card, and document any discrepancy as an observation rather than an assumed mechanism.
+3. Record the stat-card values and actual shot behavior in-game for each Fibber variant under controlled conditions; identify each variant from its firing behavior rather than assuming the card is literal.
+4. If available, record the community-known stat-card clues for each variant as a separate identification heuristic, not as proof of the underlying implementation.
