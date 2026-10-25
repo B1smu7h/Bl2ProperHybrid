@@ -1,11 +1,10 @@
-"""Read-only BL2 SDK diagnostic for Fibber and Evil Smasher behavior wiring.
+"""Read-only discovery of Fibber/Evil Smasher weapon parts and behavior providers.
 
-Run from the SDK Python console:
-    pyexec fibber_wiring.py
+Run in the BL2 SDK Python console:
+    pyexec scripts/fibber_wiring.py
 
-This script does not intentionally modify game state.
-SDK wrappers expose different property names across versions, so unavailable
-fields are skipped rather than treated as errors.
+This pass first finds weapon parts by path, then follows their exposed
+BehaviorProviderDefinition reference. It does not modify game state.
 """
 
 import unrealsdk
@@ -14,39 +13,28 @@ TOKENS = ("fibber", "evilsmash")
 MAX_ITEMS = 24
 
 
-def safe_get(obj, name, default=None):
+def get(obj, name):
     try:
         return getattr(obj, name)
     except Exception:
-        return default
+        return None
 
 
-def obj_path(obj):
+def path(obj):
     if obj is None:
         return "<none>"
-
     for name in ("PathName", "FullName", "Name"):
-        value = safe_get(obj, name)
+        value = get(obj, name)
         if value is not None:
             try:
                 value = value() if callable(value) else value
                 return str(value)
             except Exception:
                 pass
-
     return str(obj)
 
 
-def short(value, limit=180):
-    text = (
-        obj_path(value)
-        if not isinstance(value, (str, int, float, bool))
-        else repr(value)
-    )
-    return text if len(text) <= limit else text[:limit] + "..."
-
-
-def items(value):
+def as_list(value):
     if value is None:
         return []
     try:
@@ -55,108 +43,83 @@ def items(value):
         return []
 
 
-def print_fields(obj, names, indent="    "):
+def show_fields(obj, names, indent="      "):
     for name in names:
-        value = safe_get(obj, name)
+        value = get(obj, name)
         if value is not None:
-            print(f"{indent}{name}: {short(value)}")
+            print(f"{indent}{name}: {path(value)}")
 
 
-print("=== BL2 behavior wiring diagnostic (READ ONLY) ===")
+print("=== BL2 Fibber/Evil Smasher provider discovery (READ ONLY) ===")
 
 try:
-    providers = list(unrealsdk.find_all("BehaviorProviderDefinition"))
+    parts = list(unrealsdk.find_all("WeaponPartDefinition"))
+    print("WeaponPartDefinition objects enumerated:", len(parts))
 except Exception as exc:
-    print("Could not enumerate BehaviorProviderDefinition objects:", repr(exc))
+    print("Could not enumerate WeaponPartDefinition:", repr(exc))
     raise
 
-matches = []
-for provider in providers:
-    path = obj_path(provider)
-    if any(token in path.lower() for token in TOKENS):
-        matches.append(provider)
+matches = [p for p in parts if any(t in path(p).lower() for t in TOKENS)]
+print("Matching weapon parts:", len(matches))
 
-print(f"Matching providers: {len(matches)}")
+seen_providers = set()
+for part in matches:
+    print("\nPART:", path(part))
+    show_fields(part, (
+        "BehaviorProviderDefinition",
+        "WeaponAttributeEffects",
+        "WeaponProjectiles",
+        "ProjectileDefinition",
+    ), "  ")
 
-for provider in matches:
-    print("\n" + "=" * 72)
-    print("PROVIDER:", obj_path(provider))
+    provider = get(part, "BehaviorProviderDefinition")
+    if provider is None:
+        print("  No BehaviorProviderDefinition property exposed under that name.")
+        try:
+            names = [n for n in dir(part) if "behavior" in n.lower() or "provider" in n.lower()]
+            print("  Related exposed names:", names[:40])
+        except Exception:
+            pass
+        continue
 
-    sequences = safe_get(provider, "BehaviorSequences")
+    provider_path = path(provider)
+    if provider_path in seen_providers:
+        print("  Provider already printed:", provider_path)
+        continue
+    seen_providers.add(provider_path)
+
+    print("  PROVIDER:", provider_path)
+    sequences = get(provider, "BehaviorSequences")
     if sequences is None:
-        sequences = safe_get(provider, "Sequences")
-
-    seqs = items(sequences)
-    print(
-        "Sequence collection:",
-        "found" if sequences is not None else "not exposed",
-        f"({len(seqs)} entries)",
-    )
+        sequences = get(provider, "Sequences")
+    seqs = as_list(sequences)
+    print("  Sequence collection:", "exposed" if sequences is not None else "not exposed",
+          f"({len(seqs)} entries)")
 
     for si, seq in enumerate(seqs[:MAX_ITEMS]):
-        print(f"\n  SEQUENCE [{si}]: {obj_path(seq)}")
-        print_fields(
-            seq,
-            (
-                "SequenceName",
-                "Name",
-                "bEnabledOnSpawn",
-                "EnabledOnSpawn",
-                "EventData2",
-                "BehaviorData2",
-                "OutputLinks",
-                "OutputVariables",
-            ),
-            "    ",
-        )
+        print(f"    SEQUENCE [{si}]: {path(seq)}")
+        show_fields(seq, (
+            "SequenceName", "Name", "bEnabledOnSpawn", "EnabledOnSpawn"
+        ), "      ")
 
-        for field in (
-            "EventData2",
-            "BehaviorData2",
-            "OutputLinks",
-            "OutputVariables",
-        ):
-            collection = safe_get(seq, field)
-            entries = items(collection)
-            if not entries:
-                continue
-
-            print(f"    {field}: {len(entries)} entries")
+        for field in ("EventData2", "BehaviorData2"):
+            entries = as_list(get(seq, field))
+            print(f"      {field}: {len(entries)} entries")
             for i, entry in enumerate(entries[:MAX_ITEMS]):
-                print(f"      [{i}] {obj_path(entry)}")
-                print_fields(
-                    entry,
-                    (
-                        "Event",
-                        "EventName",
-                        "Name",
-                        "bEnabled",
-                        "Enabled",
-                        "OutputLinks",
-                        "OutputVariables",
-                        "Behavior",
-                        "BehaviorSequence",
-                        "SkillToActivate",
-                        "SkillToDeactivate",
-                        "AttributeEffects",
-                        "LinkedVariables",
-                    ),
-                    "        ",
-                )
+                print(f"        [{i}] {path(entry)}")
+                show_fields(entry, (
+                    "Event", "EventName", "Name", "bEnabled", "Enabled",
+                    "Behavior", "BehaviorSequence", "SkillToActivate",
+                    "SkillToDeactivate", "OutputLinks", "OutputVariables",
+                    "AttributeEffects", "LinkedVariables"
+                ), "          ")
 
-                effects = safe_get(entry, "AttributeEffects")
-                for j, effect in enumerate(items(effects)[:MAX_ITEMS]):
-                    print(f"        AttributeEffect [{j}]: {obj_path(effect)}")
-                    print_fields(
-                        effect,
-                        (
-                            "AttributeToModify",
-                            "ModifierType",
-                            "BaseModifierValue",
-                            "ModifierValue",
-                            "BaseValue",
-                        ),
-                        "          ",
-                    )
+                effects = as_list(get(entry, "AttributeEffects"))
+                for j, effect in enumerate(effects[:MAX_ITEMS]):
+                    print(f"          AttributeEffect [{j}]: {path(effect)}")
+                    show_fields(effect, (
+                        "AttributeToModify", "ModifierType",
+                        "BaseModifierValue", "ModifierValue", "BaseValue"
+                    ), "            ")
 
 print("\n=== End diagnostic; no game state was changed ===")
