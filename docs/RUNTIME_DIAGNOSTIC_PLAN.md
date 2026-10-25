@@ -1,35 +1,49 @@
 # Runtime Diagnostic Plan (Proton GE)
 
-This is the first local investigation step for BL2 Proper Hybrid. It is intentionally non-mutating: it should inspect/log the runtime environment before we experiment with weapon generation.
+This is the first local investigation step for BL2 Proper Hybrid. It is intentionally non-mutating: inspect the runtime and log useful objects before experimenting with weapon generation.
 
-## Current user-provided setup
+## Current setup (reported)
 
 - Borderlands 2, vanilla stock installation.
-- Linux via Proton GE.
-- Standby level 80 Salvador save.
+- Linux through Proton GE.
+- A standby level 80 Salvador save is available.
 - Exact storefront/build and DLC coverage: not yet confirmed.
 
-## SDK approach
+## Important loader note
 
-The current pyunrealsdk project documents:
+The current UnrealSDK README says it does not load itself: BL2 needs a game-specific plugin loader. It explicitly warns that simply renaming `unrealsdk.dll` to `d3d9.dll` is not a valid installation procedure. Do not manually copy/rename the SDK DLL based on old tutorials.
+
+References:
+- UnrealSDK: https://github.com/bl-sdk/unrealsdk
+- pyunrealsdk: https://github.com/bl-sdk/pyunrealsdk
+
+The pyunrealsdk documentation describes:
 - An embedded Python interpreter.
-- The `py` console command for one-line or heredoc-like snippets.
-- The `pyexec` command for executing a script file relative to the game working directory.
+- `py` for short Python snippets (including heredoc-like multi-line code).
+- `pyexec` for executing a script file relative to the game working directory.
 - An initialization script (default `__main__.py` next to `pyunrealsdk.dll`).
-- Runtime object lookup through `unrealsdk.find_object` and `find_all`.
-- Function hooks through `unrealsdk.hooks.add_hook`.
+- Object lookup through `unrealsdk.find_object` and `find_all`.
+- Runtime function hooks through `unrealsdk.hooks.add_hook`.
 
-Reference: https://github.com/bl-sdk/pyunrealsdk (Readme.md, accessed 2026-10-25).
+## Before installing anything
 
-## First test objective
+Please first confirm:
+1. Is this the Steam or Epic version of BL2?
+2. What Proton GE version are you running?
+3. Is any BL2 SDK loader/mod manager already installed? If yes, which one and where?
+4. Do you have all official DLC installed, or only some of it?
 
-Before attempting to modify parts or drops, verify the SDK is installed and initialized, then run a read-only query from its embedded interpreter. For example, after the SDK loader is successfully installed, use the in-game console with the documented `py` command:
+Keep the game vanilla until we choose a current BL2-compatible loader and follow its official instructions. The presence of a working Proton setup does not by itself prove that the current SDK loader is installed.
+
+## First diagnostic after loader installation is confirmed
+
+Use the in-game console's documented Python command to run this non-mutating smoke test:
 
 ```python
 py print("BL2 Proper Hybrid diagnostic: Python SDK command reached")
 ```
 
-This is only a smoke test for the console command; it does not prove object inspection works. The next query should be adapted to the installed SDK version and executed only after confirming the first test works:
+If the command succeeds, check the SDK module and a known engine object:
 
 ```python
 py << EOF
@@ -39,17 +53,15 @@ print("Engine:", unrealsdk.find_object("WillowGameEngine", "Transient.WillowGame
 EOF
 ```
 
-If the in-game console cannot accept multi-line input, run the same logic in a script file through the documented `pyexec` command, or put it in the configured initialization script. Do not assume a particular console key binding; use the key configured in your game/mod-loader setup.
+If the in-game console cannot accept the multi-line block, run a script file using the documented `pyexec` command or use the configured initialization script. Do not assume a particular console key binding; follow the key set by the chosen loader/game config.
 
-## What to report back
+## What to send back
 
-Please send:
-1. Whether BL2 is Steam or Epic.
-2. Proton GE version.
-3. Whether the SDK / mod loader is already installed. If yes, which one and the installation path.
-4. Exact output from the smoke test, or the relevant log/error text if it fails.
-5. Confirm that the Salvador save has been copied/backed up before later mutation tests.
+- Storefront and Proton GE version.
+- Whether a loader is already installed.
+- Exact output from the smoke test, or relevant log/error text if it fails.
+- Confirmation that the Salvador save has been copied before later mutation tests.
 
 ## Safety
 
-Do not change part lists or spawn/edit items in this first step. Keep the game vanilla except for the loader required to run the diagnostic. Save all mutation tests for a separate copy of the character.
+Do not edit part lists, mutate weapon objects, or spawn/edit items during the first test. Use a separate save copy for all later item-validation and persistence experiments.
